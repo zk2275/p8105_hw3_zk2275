@@ -30,7 +30,7 @@ opts_chunk$set(echo      = TRUE,
                warning   = FALSE,
                dpi       = 150,
                fig.width = 6, 
-               fig.height = 6,
+               fig.height = 12,
                fig.asp   = 5/7,
                fig.align = "center")
 
@@ -127,6 +127,8 @@ library(p8105.datasets)
 data("brfss_smart2010")
 ```
 
+First, do some data cleaning:
+
 ```{r}
 cleaned_brfss <- brfss_smart2010 |>
   janitor::clean_names() |>
@@ -147,15 +149,15 @@ states_observed <- cleaned_brfss |>
   filter(locations_count >= 7)|>
   arrange(desc(locations_count))
 #in 2002
-states_2002 <- filter(states_observed, year == 2002) 
+states_2002 <- states_observed |> filter(year == 2002) |>select(locationabbr,locations_count)
 kable(states_2002, 
-      title = "States that observed at 7 or more locations in 2002", 
-      col.names = c("Year", "State", "Locations Count"))
+      caption  = "States that observed at 7 or more locations in 2002", 
+      col.names = c( "State", "Locations Count"))
 #in 2010
-states_2010 <- filter(states_observed, year == 2010)
+states_2010 <- states_observed |> filter(year == 2010) |>select(locationabbr,locations_count)
 kable(states_2010, 
-      title = "States that observed at 7 or more locations in 2010", 
-      col.names = c("Year", "State", "Locations Count"))
+      caption  = "States that observed at 7 or more locations in 2010", 
+      col.names = c( "State", "Locations Count"))
 ```
 
 
@@ -167,10 +169,19 @@ excellent_responses <- cleaned_brfss |>
   filter(response == "Excellent") |>
   group_by(year, locationabbr) |>
   summarise(average_value = mean(data_value, na.rm = TRUE), .groups = "drop")
+
 ggplot(excellent_responses, aes(x = year, y = average_value, group = locationabbr, color = locationabbr)) +
   geom_line() +
-  labs(title = "Average Value of 'Excellent' Responses Over Time", x = "Year", y = "Average Value") +
-  theme_minimal()
+  theme_minimal()+ 
+  theme(legend.position = "right") +
+  # add meta-data
+  labs(
+      title    = "Crude Prevalence over Time"
+    , subtitle = "for each state"
+    , x        = "Year"
+    , y        = "Average Crude Prevalence Score"
+    , caption  = "Source: BRFSS."
+  )
 ```
 
 
