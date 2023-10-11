@@ -109,3 +109,160 @@ selected_items |>
 
 This table shows the mean hour of the day at which Pink Lady Apples and Coffee Ice Cream are ordered throughout a week. 
 
+### Problem 2
+
+
+```{r message=FALSE, warning=FALSE, echo=TRUE}
+library(p8105.datasets)
+data("brfss_smart2010")
+cleaned_brfss <- brfss_smart2010 |>
+  janitor::clean_names() |>
+  filter(
+    topic == "Overall Health", 
+    response %in% c("Excellent", "Very good", "Good", "Fair", "Poor")
+    ) |>
+  mutate(
+    response = factor(response, levels = c("Poor", "Fair", "Good", "Very good", "Excellent"))
+  )
+```
+
+
+```{r message=FALSE, warning=FALSE}
+states_observed <- cleaned_brfss |>
+  group_by(year, locationabbr) |>
+  summarise(locations_count = n_distinct(locationdesc), .groups = "drop") |>
+  filter(locations_count >= 7)|>
+  arrange(desc(locations_count))
+#in 2002
+states_2002 <- filter(states_observed, year == 2002) 
+kable(states_2002, 
+      title = "States that observed at 7 or more locations in 2002", 
+      col.names = c("Year", "State", "Locations Count"))
+#in 2010
+states_2010 <- filter(states_observed, year == 2010)
+kable(states_2010, 
+      title = "States that observed at 7 or more locations in 2010", 
+      col.names = c("Year", "State", "Locations Count"))
+```
+
+
+In 2002, PA, MA, NJ, CT, FL, NC (total of 6 states) were observed at 7 or more locations. In 2010, total of 14 states were observed at 7 or more locations, including FL, NJ, TX, CA, MD, NC, NE, WA, MA, NY, OH, CO, PA, SC. 
+
+
+```{r}
+excellent_responses <- cleaned_brfss |>
+  filter(response == "Excellent") |>
+  group_by(year, locationabbr) |>
+  summarise(average_value = mean(data_value, na.rm = TRUE), .groups = "drop")
+ggplot(excellent_responses, aes(x = year, y = average_value, group = locationabbr, color = locationabbr)) +
+  geom_line() +
+  labs(title = "Average Value of 'Excellent' Responses Over Time", x = "Year", y = "Average Value") +
+  theme_minimal()
+```
+
+
+This “spaghetti” plot contains only "Excellent" responses, years, states, and the average values across locations within a state.
+
+
+```{r}
+ny_data <- cleaned_brfss |>
+  filter(locationabbr == "NY", year %in% c(2006, 2010))
+ggplot(ny_data, aes(x = response, y = data_value, fill = response)) +
+  geom_boxplot() + 
+  facet_wrap(~year, scales = "free_x") + 
+  scale_fill_brewer(palette = "Set3", name = "Response Level") +
+  labs(
+    title = "Distribution of data_value for Responses (2006 & 2010) in NY",
+    x = "Response",
+    y = "Data Value"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "right")
+```
+
+
+This two-panel plot shows the distribution of 'data_value' for four levels of responses in years 2006 and year 2010, among locations in NY State only. Year 2010 has an overall high data values than year 2006 in all responses. 
+
+### Problem 3
+```{r message=FALSE, warning=FALSE}
+#Load, tidy, merge, organize datasets
+covar <- read_csv("nhanes_covar.csv", skip = 4) |>
+  janitor::clean_names() |>
+  mutate(
+      sex = recode(sex, "1" = "male", "2" = "female"),
+      education = recode(education, "1" = "Less than high school", "2" = "High school equivalent", "3" = "More than high school")
+      ) |>
+  mutate(
+    sex = factor(sex), 
+    education = factor(education)
+    )
+clean_covar <- covar |>
+  filter(age >= 21) |>
+  drop_na()
+accel <- read_csv("nhanes_accel.csv") |>
+  janitor::clean_names() 
+merged_data <- merge(clean_covar, accel, by = "seqn")
+```
+
+
+The "merged_data" dataset includes all variables from both 'accel' and 'covar' which merged by "SEQN" number; no data of participants less than age of 21; no missing demographic data; and all numeric values changed to meaningful factors. 
+
+
+```{r}
+# Table of the number of men and women in each education category
+gender_edu <- merged_data |>
+  group_by(sex, education) |>
+  summarise(count = n(), .groups = "drop") |>
+  pivot_wider(names_from = sex, values_from = count)
+kable(gender_edu, 
+      title = "Number of men and women in each education levels",
+      col.names = c("Education Level", "Number of Female", "Number of Male"))
+# Visualization of Age Distribution
+ggplot(merged_data, aes(x = education, y = age, fill = sex)) +
+  geom_boxplot() +
+  labs(title = "Age Distribution by Gender and Education",
+       x = "Education Level",
+       y = "Age") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+The table shows there are more female in the higher education group, more male have a high school equivalent background. This box-plot shows the age distribution of men and women in three different education levels. As a result, younger people appear to have a higher education level (more than high school), the middle age group have relevant lower education.
+
+
+```{r message=FALSE, warning=FALSE}
+new_merged <- merged_data |>
+  mutate(
+    total_activity = rowSums(across(min1:min1440), na.rm = TRUE)
+    )
+ggplot(new_merged, aes(x = age, y = total_activity, color = sex)) +
+  geom_point(alpha = .5) +
+  facet_wrap(~education) +
+  geom_smooth() +
+  labs(title = "Total Activity by Age, Gender, and Education")
+```
+
+
+This panel plot contains values of total activities as y-axis, and ages as x-axis, It separates into three sub-plots by education levels to compare men to women and their activities. As a result, there is a clear relationship between age and activities, as people being older (around 60), their have less activities. The group with higher education level apparent to have more activities and a gently line.  
+
+
+```{r}
+activity_data <- merged_data |>
+  group_by(education, sex)|>
+  summarise(across(starts_with("min"), ~ mean(.), .names = "mean_{.col}"), .groups = "drop") |>
+  pivot_longer(cols = starts_with("mean_"), names_to = "time", values_to = "mean")|>
+  mutate(
+    time = substring(time, 9),
+    time = as.numeric(time)
+  )
+ggplot(activity_data, aes(x = time, y = mean, color = sex)) +
+  geom_line() +
+  facet_grid(. ~education) +
+  labs(title = "24-Hour Activity by Education and Gender", 
+       x = "Time in mins",
+       y = "Mean value of activity")
+```
+
+
+This three-panel plot shows the 24-hour activity time courses for three education levels, and to find the relationship with gender. As a result, in all three panels, female always have a higher mean value of activity than male, the "less than high school" group shows a relevant high mean value of activity than other education level groups. 
