@@ -16,12 +16,24 @@ library(gt)
 ```
 
 
-```{r}
-knitr::opts_chunk$set(
-  fig.width = 6,
-  fig.asp = .6,
-  out.width = "90%"
-)
+
+```{r setup, echo = FALSE, cache = FALSE, message = FALSE}
+rm(list = ls())
+
+## Global options
+opts_chunk$set(echo      = TRUE,
+	             cache     = TRUE,
+               prompt    = FALSE,
+               tidy      = FALSE,
+               comment   = NA,
+               message   = FALSE,
+               warning   = FALSE,
+               dpi       = 150,
+               fig.width = 6, 
+               fig.height = 6,
+               fig.asp   = 5/7,
+               fig.align = "center")
+
 
 theme_set(theme_minimal() + theme(legend.position = "bottom"))
 
@@ -46,11 +58,11 @@ data("instacart")
 
 
 ```{r eval=FALSE}
-total_aisles <- length(unique(instacart$aisle))
+total_aisles <- instacart|> pull(aisle)|>unique()|>length()
 popular_aisles <- instacart |>
   group_by(aisle) |>
   summarise(item_count = n()) |>
-  arrange(-item_count)
+  arrange(-item_count) # descending order
 ```
 
 
@@ -61,9 +73,9 @@ There are total of 134 aisles in this dataset, and "fresh vegetables" aisle is t
 filtered_aisles <- instacart |>
   group_by(aisle) |>
   summarise(item_count = n()) |>
-  filter(item_count > 10000) |>
+  filter(item_count > 10000) |> #limiting this to aisles with more than 10000 items ordered
   arrange(item_count)
-ggplot(data = filtered_aisles, aes(x = aisle, y = item_count)) +
+filtered_aisles |> ggplot(aes(x = reorder(aisle, -item_count, FUN=mean), y = item_count)) +
   geom_col() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(title = "Items Ordered from Each Aisle",
@@ -74,35 +86,33 @@ ggplot(data = filtered_aisles, aes(x = aisle, y = item_count)) +
 
 This plot displays the number of items ordered in each aisle that with more than 10000 items ordered, among all, fresh fruits and fresh vegetables have the most orders. 
 
-
-```{r, message=FALSE, warning=FALSE}
-selected_aisles <- instacart |>
-  filter(aisle == "baking ingredients" | aisle == "dog food care" | aisle == "packaged vegetables fruits") |>
-  group_by(aisle, product_name) |>
-  summarise(order_count = n(), .groups = "drop") |>
-  arrange(aisle, -order_count) |>
-  filter(min_rank(desc(order_count)) < 4)
-kable(selected_aisles, 
-      title = "Top 3 Items in Selected Aisles", 
-      col.names = c("Aisle", "Product Name", "Order Count"))
+```{r}
+instacart |> 
+  filter(aisle %in% c("baking ingredients", "dog food care", "packaged vegetables fruits")) |> 
+  count(aisle, product_name, sort = T) |> 
+  group_by(aisle) |> 
+  top_n(3) |> # top 3 products within each group
+  kable()
 ```
-
 
 This table shows the the number of times each item is ordered in three most popular items from three aisles (“baking ingredients”, “dog food care”, and “packaged vegetables fruits”).
 
 
 ```{r, warning=FALSE, message=FALSE}
-selected_items <- instacart |>
-  filter(product_name %in% c("Pink Lady Apples", "Coffee Ice Cream")) |>
-  group_by(product_name, order_dow) |>
-  summarise(mean_hour = mean(order_hour_of_day), .groups = "drop") |>
-  pivot_wider(names_from = product_name, values_from = mean_hour) |>
+instacart |> 
+  filter(product_name %in% c("Pink Lady Apples", "Coffee Ice Cream")) |> 
+  group_by(product_name,order_dow) |> 
+  summarise(mean_hour = mean(order_hour_of_day))|>  # 3 cols we focus on
+  pivot_wider(
+    names_from = product_name,
+    values_from = mean_hour
+  ) |> 
   mutate(order_dow = factor(order_dow,
-                            labels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")))
-selected_items |> 
+                            labels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")))|> 
   kable(format = "markdown", 
         col.names = c("Day of Week", "Pink Lady Apples (Mean Hour)", "Coffee Ice Cream (Mean Hour)"),
-        title = "Mean Order Hour for Selected Items") 
+        caption  = "Mean Order Hour for Selected Items") 
+
 ```
 
 
@@ -115,6 +125,9 @@ This table shows the mean hour of the day at which Pink Lady Apples and Coffee I
 ```{r message=FALSE, warning=FALSE, echo=TRUE}
 library(p8105.datasets)
 data("brfss_smart2010")
+```
+
+```{r}
 cleaned_brfss <- brfss_smart2010 |>
   janitor::clean_names() |>
   filter(
