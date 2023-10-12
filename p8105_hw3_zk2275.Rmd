@@ -1,11 +1,13 @@
 ---
-title: "p8105_hw3_zk2275"
-author: "Zhuodiao Kuang"
-date: "`r Sys.Date()`"
-output: html_document
+title: "P8105: Data Science I"
+author: "Assignment 3<br>Zhuodiao Kuang (UNI: zk2275)"
+output:
+  github_document:
+    toc: TRUE
+always_allow_html: TRUE
 ---
 
-```{r include=FALSE}
+```{r load libraries,include=FALSE}
 library(tidyverse)
 library(patchwork)
 library(ggridges)
@@ -13,6 +15,7 @@ library(ggplot2)
 library(dplyr)
 library(knitr)
 library(gt)
+library(kableExtra)
 ```
 
 
@@ -132,6 +135,7 @@ First, do some data cleaning:
 ```{r}
 cleaned_brfss <- brfss_smart2010 |>
   janitor::clean_names() |>
+  rename(State = locationabbr)|>
   filter(
     topic == "Overall Health", 
     response %in% c("Excellent", "Very good", "Good", "Fair", "Poor")
@@ -144,20 +148,24 @@ cleaned_brfss <- brfss_smart2010 |>
 
 ```{r message=FALSE, warning=FALSE}
 states_observed <- cleaned_brfss |>
-  group_by(year, locationabbr) |>
-  summarise(locations_count = n_distinct(locationdesc), .groups = "drop") |>
-  filter(locations_count >= 7)|>
-  arrange(desc(locations_count))
-#in 2002
-states_2002 <- states_observed |> filter(year == 2002) |>select(locationabbr,locations_count)
-kable(states_2002, 
-      caption  = "States that observed at 7 or more locations in 2002", 
-      col.names = c( "State", "Locations Count"))
-#in 2010
-states_2010 <- states_observed |> filter(year == 2010) |>select(locationabbr,locations_count)
-kable(states_2010, 
-      caption  = "States that observed at 7 or more locations in 2010", 
-      col.names = c( "State", "Locations Count"))
+  group_by(year, State) |>
+  summarise(Locations_Count = n_distinct(locationdesc), .groups = "drop") |>
+  filter(Locations_Count >= 7)|>
+  arrange(desc(Locations_Count))
+
+# In 2002
+states_2002 <- states_observed |> filter(year == 2002) |>select(State,Locations_Count)
+kable(states_2002,booktabs = TRUE,
+      caption  = "States that observed at 7 or more locations in 2002")|>
+  kable_styling(position = "center",full_width = F)
+
+
+# In 2010
+states_2010 <- states_observed |> filter(year == 2010) |>select(State,Locations_Count)
+kable(states_2010, booktabs=TRUE,
+      caption  = "States that observed at 7 or more locations in 2010")|>
+  kable_styling(position = "center",full_width = F)
+
 ```
 
 
@@ -167,10 +175,10 @@ In 2002, PA, MA, NJ, CT, FL, NC (total of 6 states) were observed at 7 or more l
 ```{r}
 excellent_responses <- cleaned_brfss |>
   filter(response == "Excellent") |>
-  group_by(year, locationabbr) |>
+  group_by(year, State) |>
   summarise(average_value = mean(data_value, na.rm = TRUE), .groups = "drop")
 
-ggplot(excellent_responses, aes(x = year, y = average_value, group = locationabbr, color = locationabbr)) +
+ggplot(excellent_responses, aes(x = year, y = average_value, group = State, color = State)) +
   geom_line() +
   theme_minimal()+ 
   theme(legend.position = "right") +
@@ -189,19 +197,26 @@ This “spaghetti” plot contains only "Excellent" responses, years, states, an
 
 
 ```{r}
-ny_data <- cleaned_brfss |>
-  filter(locationabbr == "NY", year %in% c(2006, 2010))
-ggplot(ny_data, aes(x = response, y = data_value, fill = response)) +
-  geom_boxplot() + 
-  facet_wrap(~year, scales = "free_x") + 
-  scale_fill_brewer(palette = "Set3", name = "Response Level") +
+cleaned_brfss |>
+  filter(State == "NY", year %in% c(2006, 2010))|>
+# group by year
+  group_by(year) |>
+  # instantiate plot
+  ggplot(aes(x = response, y = data_value, color = response)) +
+  # add box plot
+  geom_boxplot() +
+  # stratify by year
+  facet_grid(~year) + 
+  # omit legend
+  theme(legend.position = "none") +
+  # add meta-data
   labs(
-    title = "Distribution of data_value for Responses (2006 & 2010) in NY",
-    x = "Response",
-    y = "Data Value"
-  ) +
-  theme_minimal() +
-  theme(legend.position = "right")
+      title    = "Distribution of Crude Prevalence"
+    , subtitle = "in NY State for given year and for given response type"
+    , x        = "Response Type"
+    , y        = "Crude Prevalence Score"
+    , caption  = "Source: BRFSS."
+  )
 ```
 
 
@@ -268,7 +283,7 @@ ggplot(new_merged, aes(x = age, y = total_activity, color = sex)) +
 ```
 
 
-This panel plot contains values of total activities as y-axis, and ages as x-axis, It separates into three sub-plots by education levels to compare men to women and their activities. As a result, there is a clear relationship between age and activities, as people being older (around 60), their have less activities. The group with higher education level apparent to have more activities and a gently line.  
+The y-axis in this panel plot represents the overall activities, and the x-axis represents the ages. In order to compare men and women and their activities, it divides into three subplots based on educational attainment. Consequently, there is a direct correlation between activities and age; individuals who are older (over 60) tend to be less active. There seems to be more activity and a gentler line in the group with higher education levels.  
 
 
 ```{r}
@@ -289,4 +304,4 @@ ggplot(activity_data, aes(x = time, y = mean, color = sex)) +
 ```
 
 
-This three-panel plot shows the 24-hour activity time courses for three education levels, and to find the relationship with gender. As a result, in all three panels, female always have a higher mean value of activity than male, the "less than high school" group shows a relevant high mean value of activity than other education level groups. 
+The 24-hour activity time courses for three educational levels are displayed in this three-panel figure, along with a gender correlation analysis. Because of this, the "less than high school" group has a notably greater mean value of activity than the other education level groups, and female tends to have higher activity score than male except for the “High school equivalent” education level.
